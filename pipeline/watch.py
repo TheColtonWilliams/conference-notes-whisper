@@ -1,4 +1,7 @@
-"""File watcher: auto-run pipeline on new audio files.
+"""File watcher: auto-run pipeline on new audio or video files.
+
+A new video first has its audio extracted (pipeline.extract); the resulting
+.m4a then runs through the same stages as any recording.
 
 Usage:
     python -m pipeline.watch              # watch for new files
@@ -8,6 +11,7 @@ Usage:
 from __future__ import annotations
 
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -27,7 +31,8 @@ class AudioHandler(FileSystemEventHandler):
         self.cfg = cfg
         self.log = log
         self.cooldown = cooldown
-        self.extensions = set(cfg.get("audio_extensions", [".m4a", ".mp3", ".wav"]))
+        self.video_extensions = {e.lower() for e in cfg.get("video_extensions", [])}
+        self.extensions = set(cfg.get("audio_extensions", [".m4a", ".mp3", ".wav"])) | self.video_extensions
         self._pending: dict[str, float] = {}
 
     def on_created(self, event):
@@ -66,8 +71,12 @@ class AudioHandler(FileSystemEventHandler):
         watcher is unattended/per-file, so it can't block on human edits. Run
         `python -m pipeline.review build/apply` (or `run.ps1`) for review.
         """
-        venv_python = str(project_root() / ".venv" / "Scripts" / "python.exe")
-        stages = [
+        venv_python = sys.executable  # the interpreter running the watcher (works on any OS)
+        stages = []
+        if path.suffix.lower() in self.video_extensions:
+            stages.append(("extract", [venv_python, "-m", "pipeline.extract", path.name]))
+            path = path.with_suffix(".m4a")  # downstream stages work on the extracted audio
+        stages += [
             ("preprocess", [venv_python, "-m", "pipeline.preprocess", path.name]),
             ("transcribe", [venv_python, "-m", "pipeline.transcribe", path.name]),
             ("correct", [venv_python, "-m", "pipeline.correct", path.name]),
@@ -101,8 +110,8 @@ def main(
     cfg = load_config()
 
     watch_dir = resolve_path("paths.raw_audio", cfg)
-    log.info("Watching %s/<collection>/ for new audio files...", watch_dir)
-    log.info("Extensions: %s", cfg.get("audio_extensions", []))
+    log.info("Watching %s/<collection>/ for new audio/video files...", watch_dir)
+    log.info("Extensions: %s", cfg.get("audio_extensions", []) + cfg.get("video_extensions", []))
     log.info("Cooldown: %ds, Poll: %ds", cooldown, interval)
 
     handler = AudioHandler(cfg, log, cooldown=cooldown)

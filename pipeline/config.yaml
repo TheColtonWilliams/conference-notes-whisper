@@ -9,6 +9,7 @@ paths:
   index: "data/index"
   speaker_id: "data/speaker-id"
   processed: "data/processed"   # completed source audio is moved here by pipeline.archive
+  video: "data/video"           # original videos land here once pipeline.extract pulls their audio
 
 models:
   device: "auto"          # auto = cuda when available else cpu; or force "cuda"/"cpu"
@@ -81,6 +82,18 @@ ollama:
   kv_cache_type: "q8_0"
   num_ctx: 8192            # was 32768; smaller KV cache lets qwen3:8b fit (near) fully on 8GB GPU
   num_gpu_layers: 999
+
+# Videos dropped into data/recordings/<collection>/ have their audio extracted to
+# <stem>.m4a in the same folder (pipeline.extract), then flow through as audio.
+video_extensions:
+  - ".mp4"
+  - ".mkv"
+  - ".mov"
+  - ".webm"
+  - ".avi"
+
+video:
+  audio_track: 0            # which audio stream to use (0 = first) when a file has several
 
 audio_extensions:
   - ".m4a"

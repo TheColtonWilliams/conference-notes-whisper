@@ -16,7 +16,8 @@ folder name is the collection and every output mirrors it. Collection helpers li
 in `pipeline/utils.py` (`discover_sources`, `discover_collections`, `collection_root`).
 
 ```
-data/recordings/<C>/*.m4a
+data/recordings/<C>/*.m4a | *.mp4 ...
+    → extract.py         → video: audio to data/recordings/<C>/<stem>.m4a, video to data/video/<C>/
     → preprocess.py      → data/audio_norm/<C>/*.wav (16kHz mono, -23 LUFS)
     → transcribe.py      → data/transcripts/<C>/*.json + .md + .vtt (+ raw/)
     → correct.py         → data/transcripts/<C>/*.clean.json

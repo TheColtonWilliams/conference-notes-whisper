@@ -20,7 +20,7 @@ Example:
 
 ```
 data/recordings/bsides-2026/opening-keynote.m4a
-data/recordings/defcon-2026/ai-redteam-panel.m4a
+data/recordings/defcon-2026/ai-redteam-panel.mp4   ← video is fine; its audio is extracted
 ```
 
 Then from the project root run the pipeline:
@@ -33,14 +33,15 @@ Then from the project root run the pipeline:
 
 ```
 data/
-├── recordings/<collection>/     ← you put audio here (the inbox)
+├── recordings/<collection>/     ← you put audio (or video) here (the inbox)
 ├── audio_norm/<collection>/     ← normalized WAVs (intermediate)
 ├── transcripts/<collection>/    ← transcripts (.json / .md / .vtt) + raw/
 ├── knowledge_base/<collection>/ ← summaries (*.md) + INDEX.md
 ├── index/<collection>/          ← LanceDB hybrid-search index
 ├── speaker-id/people.yaml       ← the GLOBAL speaker database (you name people here)
 ├── speaker-id/<collection>/     ← generated per-event view (registry.yaml)
-└── processed/<collection>/      ← finished audio is moved here automatically
+├── processed/<collection>/      ← finished audio is moved here automatically
+└── video/<collection>/          ← videos you dropped in, moved here once their audio is extracted
 ```
 
 These top-level folders already exist on a fresh clone. The pipeline creates the

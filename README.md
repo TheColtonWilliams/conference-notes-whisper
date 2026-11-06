@@ -8,8 +8,9 @@ Everything runs locally. The only network calls are HuggingFace model downloads 
 a localhost [Ollama](https://ollama.com) server. No audio or text leaves your machine.
 
 ```
-data/recordings/defcon-2026/*.m4a
+data/recordings/defcon-2026/*.m4a  (or *.mp4 / .mkv / .mov / .webm / .avi)
     │
+    ├─ extract     → video? pull its audio out to <name>.m4a, move the video to data/video/
     ├─ preprocess  → 16 kHz mono WAV, EBU R128 loudness-normalized
     ├─ transcribe  → WhisperX ASR + wav2vec2 alignment + pyannote diarization
     ├─ correct     → LLM cleanup of disfluencies / ASR errors (rule-based + Ollama)
@@ -116,6 +117,14 @@ data/recordings/bsides-2026/opening-keynote.m4a
 data/recordings/defcon-2026/ai-redteam-panel.m4a
 ```
 
+**Video works too.** Drop a talk's `.mp4` (or `.mkv`, `.mov`, `.webm`, `.avi`) into
+the same folder. The `extract` stage pulls its audio out to `<name>.m4a` next to it
+and moves the original video, untouched, to `data/video/<collection>/`. The `.m4a`
+then goes through the pipeline like any recording. Audio is stream-copied when
+possible (fast, lossless) and re-encoded to AAC when the codec can't go in an `.m4a`
+(e.g. Opus in `.webm`). For files with several audio tracks, `video.audio_track`
+in config.yaml picks which one (0 = first).
+
 Search one event with `--collection defcon-2026`, or everything with `--all`. The
 speaker database is the one thing shared across collections.
 
@@ -164,6 +173,7 @@ cp .env.example .env          # then add your HF_TOKEN
 .\pipeline\run.ps1
 
 # Individual stages (any OS)
+python -m pipeline.extract           # videos → .m4a (no-op if there are none)
 python -m pipeline.preprocess
 python -m pipeline.transcribe
 python -m pipeline.correct
@@ -193,6 +203,7 @@ model-config hashes).
 - **Transcripts**: `data/transcripts/<collection>/*.md` / `.vtt`
 - **Speakers**: `data/speaker-id/people.yaml`
 - **Review queue**: `data/REVIEW.md`
+- **Original videos**: `data/video/<collection>/`
 
 ---
 

@@ -30,6 +30,7 @@ data/*
 !data/index/
 !data/speaker-id/
 !data/processed/
+!data/video/
 
 data/recordings/*
 !data/recordings/.gitkeep
@@ -45,6 +46,8 @@ data/speaker-id/*
 !data/speaker-id/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
+data/video/*
+!data/video/.gitkeep
 
 # Stray audio anywhere outside data/ (large; back up separately)
 *.m4a

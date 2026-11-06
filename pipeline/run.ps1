@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     One-shot pipeline runner:
-      preprocess -> transcribe -> correct -> speakers -> names -> rename -> kb -> index
+      extract (video -> audio) -> preprocess -> transcribe -> correct -> speakers -> names -> rename -> kb -> index
       -> [review build -> PAUSE for human edits -> review apply] -> archive
 
     Recordings are collection-based: drop audio under data/recordings/<collection>/
@@ -68,6 +68,7 @@ if ($Resume) {
     Run-Step "Review (apply)" "pipeline.review apply"
 }
 else {
+    Run-Step "Extract Audio" "pipeline.extract"
     Run-Step "Preprocess" "pipeline.preprocess"
     Run-Step "Transcribe" "pipeline.transcribe"
     Run-Step "Correct" "pipeline.correct"
