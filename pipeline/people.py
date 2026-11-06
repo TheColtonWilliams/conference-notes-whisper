@@ -196,6 +196,7 @@ def unnamed_in_collection(cfg: dict, collection: str) -> list[dict]:
             "speaking_time": format_timestamp(sum(a.get("speaking_time_sec", 0) for a in apps)),
             "files": sorted({a["file"] for a in apps}),
             "also_in": others,
+            "proposals": person.get("proposed_names", [])[:3],
             "samples": [q for a in apps for q in a.get("sample_quotes", [])][:3],
         })
     return out

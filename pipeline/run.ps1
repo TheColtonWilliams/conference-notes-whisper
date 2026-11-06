@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     One-shot pipeline runner:
-      preprocess -> transcribe -> correct -> speakers -> rename -> kb -> index
+      preprocess -> transcribe -> correct -> speakers -> names -> rename -> kb -> index
       -> [review build -> PAUSE for human edits -> review apply] -> archive
 
     Recordings are collection-based: drop audio under data/recordings/<collection>/
@@ -43,9 +43,12 @@ $DryArg = if ($DryRun) { "--dry-run" } else { "" }
 $VerboseArg = if ($Verbose) { "--verbose" } else { "" }
 
 function Run-Step {
-    param([string]$Name, [string]$Module, [string]$ExtraArgs = "")
+    # -AllFiles: the stage works on whole collections (speaker matching, index), so
+    # it takes no file argument even in a -File run.
+    param([string]$Name, [string]$Module, [string]$ExtraArgs = "", [switch]$AllFiles)
     Write-Host "`n=== $Name ===" -ForegroundColor Cyan
-    $cmd = "& `"$VenvPython`" -m $Module $FileArg $DryArg $VerboseArg $ExtraArgs"
+    $StepFileArg = if ($AllFiles) { "" } else { $FileArg }
+    $cmd = "& `"$VenvPython`" -m $Module $StepFileArg $DryArg $VerboseArg $ExtraArgs"
     Invoke-Expression $cmd
     if ($LASTEXITCODE -ne 0) {
         Write-Error "$Name failed with exit code $LASTEXITCODE"
@@ -68,10 +71,11 @@ else {
     Run-Step "Preprocess" "pipeline.preprocess"
     Run-Step "Transcribe" "pipeline.transcribe"
     Run-Step "Correct" "pipeline.correct"
-    Run-Step "Speaker ID" "pipeline.speakers"
-    Run-Step "Rename Speakers" "pipeline.rename_speakers"
+    Run-Step "Speaker ID" "pipeline.speakers" -AllFiles
+    Run-Step "Name Proposals" "pipeline.names"
+    Run-Step "Rename Speakers" "pipeline.rename_speakers" -AllFiles
     Run-Step "Knowledge Base" "pipeline.kb extract"
-    Run-Step "Index" "pipeline.index"
+    Run-Step "Index" "pipeline.index" -AllFiles
 
     if (-not $NoReview -and -not $DryRun) {
         Run-Step "Review (build)" "pipeline.review build"
@@ -81,6 +85,7 @@ else {
             Write-Host "Verify acronyms/entities and speakers before finalizing:" -ForegroundColor Yellow
             Write-Host "  1. data\glossary.yaml      -> set 'status: verified' + fix each 'definition'"
             Write-Host "  2. data\speaker-id\people.yaml -> set 'display_name' (one database across all conferences)"
+            Write-Host "     or accept proposed names: python -m pipeline.names --accept <id>  (or --accept-all)"
             Write-Host "  Guide: data\REVIEW.md"
             Write-Host "Press Enter to apply now, or Ctrl-C and later run: .\pipeline\run.ps1 -Resume" -ForegroundColor Yellow
             [void](Read-Host "Press Enter to apply")

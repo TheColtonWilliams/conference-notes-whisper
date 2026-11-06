@@ -21,6 +21,7 @@ data/recordings/<C>/*.m4a
     → transcribe.py      → data/transcripts/<C>/*.json + .md + .vtt (+ raw/)
     → correct.py         → data/transcripts/<C>/*.clean.json
     → speakers.py        → data/speaker-id/people.yaml (GLOBAL) + <C>/registry.yaml (view)
+    → names.py           → <C>/names/<stem>.json claims → people.yaml `proposed_names`
     → rename_speakers.py → names from people.yaml into every transcript (re-renders .md/.vtt)
     → kb.py              → data/knowledge_base/<C>/*.md + INDEX.md
     → index.py           → data/index/<C>/lancedb/
@@ -42,6 +43,24 @@ data/recordings/<C>/*.m4a
   `embeddings/people/<pid>.npy` per-person centroid (mean of appearances).
 - `<C>/registry.yaml` is a generated view. Never read it as a source of truth.
 - `--merge SRC --into DST` folds two ids together.
+
+### Name proposals (`pipeline/names.py`)
+
+- Sends the LLM only an *excerpt*: first `head_minutes`, last `tail_minutes`, and
+  `context_segments` around intro cues (`_CUES`/`_SELF` regexes). Neighbors matter:
+  in "please welcome X", X is the *next* speaker, not the host.
+- Per-talk claims are cached in `data/speaker-id/<C>/names/<stem>.json`, keyed by a
+  hash of the excerpt + model + prompt. That hash is deliberately not a file sha,
+  because `rename_speakers` rewrites the transcript JSON.
+- `roll_up` recomputes every person's `proposed_names` from all caches on each run
+  (weights: self-intro 3, introduced 2, addressed 1; lone first names fold into a
+  matching full name). So merges and re-matches are reflected automatically.
+- Guards: claim labels must exist in the transcript, and at least one name token
+  must occur in the excerpt.
+- Never auto-applies. `--accept <id> [--pick N]` / `--accept-all` (unnamed,
+  score ≥ `auto_accept_score`, top ≥ 2× runner-up).
+- Optional enrichment: an Ollama outage or a validation failure skips the file with
+  a warning (no cache, retried next run) and does not stop the pipeline.
 
 ## Key Constraints
 

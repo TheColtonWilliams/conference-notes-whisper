@@ -226,7 +226,8 @@ def _write_review_md(cfg: dict, report: dict) -> Path:
         "meaning in another subject? It's listed under *possible new meaning* — give it "
         "its own sense.",
         "2. **Speakers** — `data/speaker-id/people.yaml`: set `display_name` (and "
-        "optionally `affiliation`) for each unnamed person below. Same person under two "
+        "optionally `affiliation`) for each unnamed person below, or accept a proposed name "
+        "with `python -m pipeline.names --accept <id>`. Same person under two "
         "ids? `python -m pipeline.speakers --merge <id> --into <id>`.",
         "",
         "_This file is generated; your edits go in the files above, not here._",
@@ -270,6 +271,13 @@ def _write_review_md(cfg: dict, report: dict) -> Path:
             also = f" (also heard in: {', '.join(s['also_in'])})" if s.get("also_in") else ""
             lines.append(f"- **{s['cluster']}** — {s['speaking_time']} across "
                          f"{', '.join(s['files'])}{also}")
+            for p in s.get("proposals", []):
+                aff = f" ({p['affiliation']})" if p.get("affiliation") else ""
+                ev = p["evidence"][0] if p.get("evidence") else {}
+                lines.append(f"    - proposed: **{p['name']}**{aff}, score {p['score']} "
+                             f"({', '.join(p['basis'])}): \"{ev.get('quote', '')}\" [{ev.get('source', '')}]")
+            if s.get("proposals"):
+                lines.append(f"    - accept: `python -m pipeline.names --accept {s['cluster']}`")
             for q in s["samples"]:
                 lines.append(f"    - \"{q}\"")
         lines.append("")

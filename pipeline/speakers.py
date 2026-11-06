@@ -240,6 +240,9 @@ def main(
             apps = person.get("appearances", [])
             cols = sorted({a["collection"] for a in apps})
             log.info("  %s -- %d appearance(s) in %s", pid, len(apps), ", ".join(cols))
+            for p in (person.get("proposed_names") or [])[:2]:
+                log.info("    ? %s (score %d) -- accept: python -m pipeline.names --accept %s",
+                         p["name"], p["score"], pid)
             for q in [q for a in apps for q in a.get("sample_quotes", [])][:3]:
                 log.info("    > %s", q)
         return

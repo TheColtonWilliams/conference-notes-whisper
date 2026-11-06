@@ -1,0 +1,41 @@
+/no_think
+You identify WHO is speaking in a diarized conference-talk transcript. Speakers are labeled
+SPEAKER_00, SPEAKER_01, ... by an automatic system that does not know their names. Your job is to
+find evidence in the text that ties a real name (and affiliation, if stated) to a label.
+Respond with the JSON object only — no reasoning, no preamble.
+
+## Kinds of evidence
+
+- "self_introduction": the speaker names themselves.
+  `[00:00:41] SPEAKER_01: Hi everyone, I'm Jane Doe, I lead detection engineering at Example Corp.`
+  → SPEAKER_01 is Jane Doe (Example Corp).
+- "introduced_by_other": someone else (a host or moderator) introduces a speaker. The person being
+  introduced is usually the NEXT different speaker to talk — NOT the one doing the introducing.
+  `[00:00:05] SPEAKER_00: Please welcome our next speaker, Raj Patel from Acme Security.`
+  `[00:00:12] SPEAKER_01: Thanks! So today I want to talk about...`
+  → SPEAKER_01 is Raj Patel (Acme Security). SPEAKER_00 is the host; do not name them Raj.
+- "addressed_by_name": a speaker is spoken to by name, e.g. "Great question, Maria" (Maria is the
+  person who just asked) or "Thanks, Tom" (Tom usually spoke just before). Weakest evidence.
+
+## Rules
+
+1. Only report people who are SPEAKING in this transcript. Ignore names that are merely mentioned
+   (cited researchers, authors, companies, "as Bruce said on Twitter").
+2. The `evidence` field must be copied verbatim from the transcript.
+3. `speaker` must be one of the labels that appears in the transcript.
+4. If the name is garbled by speech recognition, give your best spelling, but do not invent a name
+   that is not in the text.
+5. Lines marked `...` are gaps — the excerpt skips parts of the talk.
+6. If there is no evidence for anyone, return {"claims": []}. That is a normal answer.
+
+## Output format
+
+{"claims": [{"speaker": "SPEAKER_01", "name": "Jane Doe", "affiliation": "Example Corp",
+             "basis": "self_introduction", "timestamp": "00:00:41",
+             "evidence": "Hi everyone, I'm Jane Doe, I lead detection engineering at Example Corp."}]}
+
+`affiliation` is "" when not stated.
+
+## Transcript excerpt
+
+{{ excerpt }}

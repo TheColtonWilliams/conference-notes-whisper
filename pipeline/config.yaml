@@ -49,6 +49,17 @@ speakers:
   min_speech_seconds: 30
   max_speech_seconds: 90
 
+names:
+  # Propose speaker names from introductions ("please welcome Jane Doe...").
+  # Proposals land in people.yaml as proposed_names; a human accepts them.
+  enabled: true
+  model: "qwen3:8b"
+  head_minutes: 5           # always include the opening (host intro, self-intro)
+  tail_minutes: 2           # and the close (thank-yous, Q&A wrap-up)
+  context_segments: 2       # segments around each intro cue elsewhere in the talk
+  max_chars: 12000
+  auto_accept_score: 3      # --accept-all threshold (self-intro=3, introduced=2, addressed=1)
+
 correction:
   enabled: true
   model: "qwen3:8b"
