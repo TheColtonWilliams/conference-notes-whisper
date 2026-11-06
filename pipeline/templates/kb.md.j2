@@ -1,0 +1,68 @@
+---
+source: {{ source }}
+duration: {{ duration }}
+participants: {{ participants | join(", ") }}
+topics: {{ topics | join(", ") }}
+generated_at: {{ generated_at }}
+model: {{ model }}
+---
+
+# {{ title }}
+
+## Summary
+
+{{ summary }}
+
+## Participants
+
+{% for p in participants %}- {{ p }}
+{% endfor %}
+
+## Decisions
+
+{% for d in decisions %}- {{ d }}
+{% endfor %}
+{% if not decisions %}_No decisions recorded._
+{% endif %}
+
+## Action Items
+
+{% for item in action_items %}- [ ] {{ item.task }} — owner: {{ item.owner }}, due: {{ item.due }}, [{{ item.source_timestamp }}] source
+{% endfor %}
+{% if not action_items %}_No action items recorded._
+{% endif %}
+
+## Open Questions
+
+{% for q in open_questions %}- {{ q }}
+{% endfor %}
+{% if not open_questions %}_No open questions recorded._
+{% endif %}
+
+## Topics
+
+{% for t in topics %}- {{ t }}
+{% endfor %}
+
+## Entities
+
+{% for e in entities %}- {{ e }}
+{% endfor %}
+
+## Notable Quotes
+
+{% for q in notable_quotes %}
+> {{ q.text }}
+>
+> — {{ q.speaker }}, [{{ q.timestamp }}]
+
+{% endfor %}
+{% if not notable_quotes %}_No notable quotes recorded._
+{% endif %}
+
+## Glossary
+
+{% for term, definition in glossary.items() %}- **{{ term }}**: {{ definition }}
+{% endfor %}
+{% if not glossary %}_No glossary entries._
+{% endif %}

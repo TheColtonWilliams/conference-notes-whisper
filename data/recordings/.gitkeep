@@ -1,0 +1,4 @@
+# Drop audio here in a per-collection subfolder, e.g.:
+#   recordings/my-meetings/Some Recording.m4a
+# The subfolder name becomes the "collection" (its own transcripts, KB, index,
+# and speaker registry). Contents of this folder are gitignored.

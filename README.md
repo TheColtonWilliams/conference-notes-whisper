@@ -1,0 +1,199 @@
+# conference-notes-whisper
+
+Turn conference talk recordings into **speaker-labeled transcripts**, **structured
+notes**, and a **searchable archive**, and build up a **database of speakers** that
+recognizes the same person's voice across talks and across events.
+
+Everything runs locally. The only network calls are HuggingFace model downloads and
+a localhost [Ollama](https://ollama.com) server. No audio or text leaves your machine.
+
+```
+data/recordings/defcon-2026/*.m4a
+    │
+    ├─ preprocess  → 16 kHz mono WAV, EBU R128 loudness-normalized
+    ├─ transcribe  → WhisperX ASR + wav2vec2 alignment + pyannote diarization
+    ├─ correct     → LLM cleanup of disfluencies / ASR errors (rule-based + Ollama)
+    ├─ speakers    → ECAPA-TDNN voiceprints → matched against your people database
+    ├─ kb          → structured notes per talk (summary, topics, entities, quotes, open questions)
+    ├─ index       → LanceDB vector + BM25 hybrid search index
+    └─ archive     → move finished audio to processed/ (don't-reprocess gate)
+```
+
+```bash
+python -m pipeline.search "how are people doing SBOM attestation?" --all --rag
+python -m pipeline.search "fuzzing" --speaker "Jane Doe" --all
+```
+
+---
+
+## The speaker database
+
+The point of this project is to recognize speakers. Each event you record makes
+the database better:
+
+1. **Within an event**, voices are clustered across all of its talks (same room, same
+   PA system, so the matching can be looser).
+2. **Across events**, each voice is matched against the global database,
+   `data/speaker-id/people.yaml`, with a stricter threshold. If the voice is
+   recognized, it's linked to that person. Otherwise a new, unnamed person
+   (`spk_0007`) is created.
+3. **You name people once.** Set `display_name` (and `affiliation`) in
+   `people.yaml`, run `python -m pipeline.rename_speakers`, and every transcript,
+   note, and search result in every collection picks up the name.
+
+```yaml
+# data/speaker-id/people.yaml
+spk_0001:
+  display_name: Jane Doe          # ← you edit this
+  affiliation: Example Corp       # ← and this
+  aliases: []
+  notes: ''
+  appearances:                    # ← generated: every talk this voice was heard in
+  - collection: bsides-2026
+    file: opening-keynote
+    local_id: SPEAKER_00
+    speaking_time_sec: 2412.3
+  - collection: defcon-2026
+    file: ai-redteam-panel
+    local_id: SPEAKER_02
+    speaking_time_sec: 611.0
+    match_distance: 0.214         # cosine distance to Jane's voiceprint
+```
+
+```bash
+python -m pipeline.speakers --list-unknown                    # who still needs a name
+python -m pipeline.speakers --merge spk_0009 --into spk_0001  # same person, two ids
+python -m pipeline.rename_speakers                            # push names everywhere
+```
+
+Person ids are stable: re-running a collection after adding more talks keeps
+everyone's existing id. Each `data/speaker-id/<collection>/registry.yaml` is a
+generated, read-only view of who appeared at that event.
+
+**Tuning** (`pipeline/config.yaml` → `speakers:`):
+- `distance_threshold` (0.40) sets how loosely voices cluster *within* an event.
+- `match_threshold` (0.35) sets how strictly a voice must match a *known person*.
+  A false merge pollutes the database and a missed match is a one-line `--merge`,
+  so err strict.
+
+---
+
+## Collections: one folder per event
+
+The folder under `data/recordings/` *is* the collection, and every output is namespaced
+under it:
+
+```
+data/recordings/bsides-2026/opening-keynote.m4a
+data/recordings/defcon-2026/ai-redteam-panel.m4a
+```
+
+Search one event with `--collection defcon-2026`, or everything with `--all`. The
+speaker database is the one thing shared across collections.
+
+---
+
+## Requirements
+
+- **Python 3.11**, an NVIDIA GPU recommended (CPU works but is slow). Built and tuned
+  on an 8 GB RTX 2000 Ada; models load sequentially to fit 8 GB of VRAM.
+- **ffmpeg** on `PATH`.
+- **[Ollama](https://ollama.com)** running locally.
+- A **HuggingFace token** with access to `pyannote/speaker-diarization-3.1` (accept
+  the model terms on HF, then put the token in `.env`).
+- **No compiler needed.** Every dependency ships prebuilt wheels for Python 3.11 on
+  x86-64 Windows/Linux. The CUDA/cuDNN runtime comes with the torch wheels; you only
+  need an NVIDIA driver. (On platforms without wheels, such as ARM Linux, you'd need a
+  C/C++ toolchain and Rust to build lancedb/tokenizers from source.)
+
+### Install (order matters for the GPU)
+
+PyTorch **must** come from the CUDA index *before* anything else, or pip silently
+pulls CPU-only wheels:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate            # Windows: .\.venv\Scripts\Activate.ps1
+pip install torch==2.8.0 torchaudio==2.8.0 torchvision==0.23.0 \
+    --index-url https://download.pytorch.org/whl/cu126
+pip install -r pipeline/requirements.txt
+# if other deps replaced torch with CPU wheels, reinstall it:
+pip install torch==2.8.0 torchaudio==2.8.0 torchvision==0.23.0 \
+    --index-url https://download.pytorch.org/whl/cu126 --force-reinstall --no-deps
+
+ollama pull qwen3:8b          # fast transcript correction (fits an 8 GB GPU)
+ollama pull qwen3:30b-a3b     # higher-accuracy notes (MoE, CPU-heavy on 8 GB)
+
+cp .env.example .env          # then add your HF_TOKEN
+```
+
+---
+
+## Usage
+
+```bash
+# Whole pipeline, all collections (Windows runner; pauses for human review)
+.\pipeline\run.ps1
+
+# Individual stages (any OS)
+python -m pipeline.preprocess
+python -m pipeline.transcribe
+python -m pipeline.correct
+python -m pipeline.speakers
+python -m pipeline.rename_speakers
+python -m pipeline.kb extract
+python -m pipeline.index
+python -m pipeline.review build      # queue unnamed speakers + unverified acronyms
+python -m pipeline.review apply      # propagate your edits
+python -m pipeline.archive
+
+python -m pipeline.watch             # auto-process new recordings
+```
+
+Every stage supports `--dry-run` and `--verbose`, logs to `pipeline/logs/`, and is
+**idempotent**: re-running with no new input writes nothing (tracked via sha256 +
+model-config hashes).
+
+**Better transcripts for a specific event:** put its jargon and speaker names in
+`asr.initial_prompt` (config.yaml) and common mishearings in
+`pipeline/prompts/domain_corrections.yaml`.
+
+### Where to read the results
+
+- **Talk notes**: `data/knowledge_base/<collection>/*.md` (+ `INDEX.md`)
+- **Transcripts**: `data/transcripts/<collection>/*.md` / `.vtt`
+- **Speakers**: `data/speaker-id/people.yaml`
+- **Review queue**: `data/REVIEW.md`
+
+---
+
+## Notes & gotchas
+
+- **Start Ollama before running the pipeline.** `correct` degrades gracefully without
+  it, but `kb` hard-fails.
+- **`qwen3` is a reasoning model.** Thinking mode makes it unusably slow here, so the
+  prompts begin with `/no_think`. Keep that line in any new prompt.
+- **pyannote 4.x uses more VRAM than 3.x.** If diarization OOMs, set
+  `diarization.run_on: "cpu"`.
+- **Windows**: SpeechBrain needs a small patch (`pipeline/_patch.py`, applied
+  automatically).
+
+---
+
+## Privacy, consent, and voiceprints
+
+- `data/` is git-ignored. Recordings, transcripts, notes, and **the speaker database
+  never get committed**. Keep it that way, and don't publish `people.yaml` or the
+  `embeddings/` folder.
+- **Voiceprints are biometric data.** Laws such as GDPR (EU/UK) and BIPA (Illinois)
+  regulate collecting and storing them. You are responsible for complying where
+  you live and where you record.
+- **Many conferences restrict recording.** Check the event's policy, and respect
+  speakers who ask not to be recorded. If a speaker asks to be removed, delete their
+  entry from `people.yaml` and their `embeddings/people/<id>.npy`.
+
+---
+
+## License
+
+MIT. See `LICENSE`.

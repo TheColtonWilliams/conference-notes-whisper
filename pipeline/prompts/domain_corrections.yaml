@@ -1,0 +1,12 @@
+# Deterministic spelling fixes applied before LLM correction.
+# Map what Whisper tends to hear (lowercase) -> the canonical spelling.
+# `python -m pipeline.review apply` appends verified glossary terms here.
+corrections:
+  "whisper x": "WhisperX"
+  "whisperx": "WhisperX"
+  "pie-a-note": "pyannote"
+  "pyanote": "pyannote"
+  "lance db": "LanceDB"
+  "speech brain": "SpeechBrain"
+  "hugging face": "HuggingFace"
+  "ollama": "Ollama"

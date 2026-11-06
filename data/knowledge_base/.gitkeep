@@ -1,0 +1,2 @@
+# Keeps data/knowledge_base/ in the repo so it exists on a fresh clone.
+# The pipeline writes KB summaries + INDEX.md here (per collection). Contents git-ignored.

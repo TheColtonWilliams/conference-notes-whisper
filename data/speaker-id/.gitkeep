@@ -1,0 +1,2 @@
+# Keeps data/speaker-id/ in the repo so it exists on a fresh clone.
+# The pipeline writes voice clusters + registry.yaml here (per collection). Contents git-ignored.

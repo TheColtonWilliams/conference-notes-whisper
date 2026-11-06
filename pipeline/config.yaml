@@ -1,0 +1,85 @@
+paths:
+  # All content lives under data/ (gitignored). Collection-based ingest: drop
+  # audio under data/recordings/<collection>/ and the subfolder name becomes the
+  # collection. Every output mirrors that name under data/.
+  raw_audio: "data/recordings"
+  normalized: "data/audio_norm"
+  transcripts: "data/transcripts"
+  kb: "data/knowledge_base"
+  index: "data/index"
+  speaker_id: "data/speaker-id"
+  processed: "data/processed"   # completed source audio is moved here by pipeline.archive
+
+models:
+  device: "auto"          # auto = cuda when available else cpu; or force "cuda"/"cpu"
+  asr: "large-v3"
+  asr_compute: "float16"
+  align_model: "WAV2VEC2_ASR_LARGE_LV60K_960H"
+  diarization: "pyannote/speaker-diarization-3.1"
+  speaker_embed: "speechbrain/spkrec-ecapa-voxceleb"
+  embedder: "BAAI/bge-large-en-v1.5"
+  reranker: "BAAI/bge-reranker-v2-m3"
+  llm: "qwen3:30b-a3b"     # KB summaries use the larger model for accuracy (correction uses 8b via correction.model)
+  llm_fallback: "qwen3:8b"
+
+asr:
+  language: "en"
+  beam_size: 5
+  batch_size: 4
+  vad_filter: true
+  vad_params:
+    min_silence_duration_ms: 500
+  # Vocabulary hint for Whisper: put the event's jargon, product names, and
+  # speaker names here (comma-separated) to improve their spelling.
+  initial_prompt: ""
+  inter_threads: 4
+
+diarization:
+  min_speakers: null
+  max_speakers: null
+  run_on: "cuda"
+
+speakers:
+  model: "speechbrain/spkrec-ecapa-voxceleb"
+  embedding_dim: 192
+  clustering: "agglomerative"
+  distance_threshold: 0.40      # within a collection: same room/mic, so looser
+  match_threshold: 0.35         # across collections (people.yaml): stricter, since a false
+                                # merge pollutes the database; lower = fewer, safer matches
+  min_speech_seconds: 30
+  max_speech_seconds: 90
+
+correction:
+  enabled: true
+  model: "qwen3:8b"
+  corrections_file: "pipeline/prompts/domain_corrections.yaml"
+
+chunking:
+  strategy: "recursive"
+  tokens_per_chunk: 512
+  overlap_fraction: 0.15
+  respect_speaker_turns: true
+
+retrieval:
+  top_k: 50
+  rerank_k: 10
+  rag_context_k: 5
+  hybrid_alpha: 0.6
+
+ollama:
+  kv_cache_type: "q8_0"
+  num_ctx: 8192            # was 32768; smaller KV cache lets qwen3:8b fit (near) fully on 8GB GPU
+  num_gpu_layers: 999
+
+audio_extensions:
+  - ".m4a"
+  - ".mp3"
+  - ".wav"
+  - ".flac"
+  - ".ogg"
+
+preprocess:
+  workers: 4
+  target_lufs: -23
+  peak_limit_dbtp: -1
+  sample_rate: 16000

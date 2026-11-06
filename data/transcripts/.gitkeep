@@ -1,0 +1,2 @@
+# Keeps data/transcripts/ in the repo so it exists on a fresh clone.
+# The pipeline writes transcripts (.json/.md/.vtt) here (per collection). Contents git-ignored.

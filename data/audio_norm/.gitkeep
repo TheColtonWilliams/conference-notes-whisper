@@ -1,0 +1,2 @@
+# Keeps data/audio_norm/ in the repo so it exists on a fresh clone.
+# The pipeline writes normalized WAVs here (per collection). Contents git-ignored.

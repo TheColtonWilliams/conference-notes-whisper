@@ -1,0 +1,23 @@
+---
+source: {{ source }}
+duration: {{ duration }}
+language: {{ language }}
+speakers:
+{% for spk in speakers %}  - id: {{ spk.id }}
+    display_name: {{ spk.display_name }}
+    turns: {{ spk.turns }}
+    speaking_time_sec: {{ spk.speaking_time_sec }}
+{% endfor %}
+model:
+  asr: {{ model.asr }}
+  asr_compute: {{ model.asr_compute }}
+  align: {{ model.align }}
+  diar: {{ model.diar }}
+generated_at: {{ generated_at }}
+---
+
+# {{ title }}
+
+{% for turn in turns %}
+**[{{ turn.timestamp }}] {{ turn.speaker }}:** {{ turn.text }}
+{% endfor %}

@@ -1,0 +1,71 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+
+# ---------------------------------------------------------------------------
+# All content — recordings and every derived output — lives under data/.
+# Its contents are gitignored so the repo stays functionality-only. The repo
+# DOES track data/README.md plus an empty scaffold of every pipeline directory
+# (via .gitkeep) so a fresh clone has the full folder structure ready to use —
+# the user never has to create a directory by hand.
+# Drop audio into data/recordings/<collection>/. See data/README.md.
+# ---------------------------------------------------------------------------
+data/*
+!data/README.md
+
+# Keep the directory scaffold: track each pipeline dir and its .gitkeep,
+# but ignore everything the pipeline writes inside them.
+!data/recordings/
+!data/audio_norm/
+!data/transcripts/
+!data/knowledge_base/
+!data/index/
+!data/speaker-id/
+!data/processed/
+
+data/recordings/*
+!data/recordings/.gitkeep
+data/audio_norm/*
+!data/audio_norm/.gitkeep
+data/transcripts/*
+!data/transcripts/.gitkeep
+data/knowledge_base/*
+!data/knowledge_base/.gitkeep
+data/index/*
+!data/index/.gitkeep
+data/speaker-id/*
+!data/speaker-id/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Stray audio anywhere outside data/ (large; back up separately)
+*.m4a
+*.mp3
+*.wav
+*.flac
+*.ogg
+
+# Model caches
+.cache/
+
+# Logs
+pipeline/logs/
+
+# Windows junk
+nul
+_ul
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
