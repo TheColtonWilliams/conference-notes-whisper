@@ -7,8 +7,9 @@ acronyms the LLM only *guessed* at, plus unnamed speaker clusters. This stage:
             into the GLOBAL data/glossary.yaml (status: unverified), list unnamed
             speakers, and write a human-readable data/REVIEW.md guide + a marker.
   status -> summarize what is still pending.
-  apply  -> propagate verified data: merge verified acronyms into
-            domain_corrections.yaml (spelling), then re-run the back half
+  apply  -> propagate verified data: merge verified acronyms into the local,
+            gitignored domain_corrections.local.yaml (spelling; event vocabulary
+            never goes in the shared tracked file), then re-run the back half
             (correct -> rename_speakers -> kb extract -> index -> kb index-md),
             which is staleness-gated so only affected files recompute.
 
@@ -71,7 +72,10 @@ def _marker_path(cfg: dict) -> Path:
 
 
 def _corrections_path(cfg: dict) -> Path:
-    rel = cfg.get("correction", {}).get("corrections_file", "pipeline/prompts/domain_corrections.yaml")
+    """Where verified spellings are written: the local (gitignored) overlay, never the
+    shared tracked file, so event vocabulary stays out of the repo."""
+    rel = cfg.get("correction", {}).get("local_corrections_file",
+                                         "pipeline/prompts/domain_corrections.local.yaml")
     return project_root() / rel
 
 
@@ -267,6 +271,10 @@ def _write_review_md(cfg: dict, report: dict) -> Path:
         speakers = rep["speakers"]
         lines.append(f"### Unnamed speakers ({len(speakers)})")
         lines.append("")
+        if speakers:
+            lines.append(f"Listen first: one clip per voice in `data/speaker-id/{collection}/clips/` "
+                         "(see its `INDEX.md`; build with `python -m pipeline.clips`).")
+            lines.append("")
         for s in speakers:
             also = f" (also heard in: {', '.join(s['also_in'])})" if s.get("also_in") else ""
             lines.append(f"- **{s['cluster']}** — {s['speaking_time']} across "
@@ -371,10 +379,18 @@ def status(
 def _merge_domain_corrections(cfg: dict, terms: list[str], log, dry_run: bool) -> int:
     """Idempotently add `lowercased -> Canonical` spelling fixes for verified terms."""
     path = _corrections_path(cfg)
+    # This file is hand-maintained: only a missing file counts as empty. An unreadable
+    # one stops the apply rather than being overwritten (and its rules lost).
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except (yaml.YAMLError, OSError):
+    except FileNotFoundError:
         data = {}
+    except (yaml.YAMLError, OSError) as e:
+        log.error("Can't read %s (%s) -- fix it, then re-run apply. Nothing was written.", path, e)
+        raise typer.Exit(1)
+    if not isinstance(data, dict) or not isinstance(data.get("corrections") or {}, dict):
+        log.error("%s must be a mapping with a 'corrections:' mapping -- fix it, then re-run apply.", path)
+        raise typer.Exit(1)
     corr = data.get("corrections") or {}
     added = 0
     for term in terms:

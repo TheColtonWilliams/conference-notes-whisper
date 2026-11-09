@@ -40,16 +40,38 @@ def _corrections_hash(corrections: dict[str, str]) -> str:
     ).hexdigest()[:16]
 
 
+# Output cap per LLM call. A batch normally fits well under it; a model stuck in a
+# repetition loop stops here instead of generating for half an hour, and a batch that
+# really needs more room is retried in halves (see run_batch). num_ctx bounds prompt +
+# output together, so keep this well below it.
+_MAX_OUTPUT_TOKENS = 4096
+
+
+def _done_reason(response) -> str | None:
+    """Why the model stopped ("stop", "length", ...); works for dicts and ollama objects."""
+    reason = getattr(response, "done_reason", None)
+    if reason is None and isinstance(response, dict):
+        reason = response.get("done_reason")
+    return reason
+
+
 def _load_corrections(cfg: dict) -> dict[str, str]:
-    """Load domain corrections from YAML file."""
-    corrections_file = project_root() / cfg.get("correction", {}).get(
-        "corrections_file", "pipeline/prompts/domain_corrections.yaml"
-    )
-    if not corrections_file.exists():
-        return {}
-    with open(corrections_file, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    return data.get("corrections", {})
+    """Load domain corrections: the shared file, then the local (gitignored) overlay.
+
+    The overlay holds event-specific spellings, including the ones `review apply`
+    adds for verified terms, so they never land in the tracked file.
+    """
+    ccfg = cfg.get("correction", {})
+    merged: dict[str, str] = {}
+    for rel in (ccfg.get("corrections_file", "pipeline/prompts/domain_corrections.yaml"),
+                ccfg.get("local_corrections_file", "pipeline/prompts/domain_corrections.local.yaml")):
+        path = project_root() / rel
+        if not path.exists():
+            continue
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        merged.update(data.get("corrections") or {})
+    return merged
 
 
 def _apply_rule_based(segments: list[dict], corrections: dict[str, str]) -> tuple[list[dict], int]:
@@ -89,27 +111,18 @@ def _apply_llm_corrections(
     )
     template = env.get_template("correct.j2")
 
-    # Process in batches of ~20 segments (~3000 tokens)
-    batch_size = 20
-    all_corrected = []
-    total_corrections = 0
-
-    n_batches = (len(segments) + batch_size - 1) // batch_size
-    for i in range(0, len(segments), batch_size):
-        batch_num = i // batch_size + 1
-        log.info("    LLM batch %d/%d (%d segments)...", batch_num, n_batches, len(segments[i:i + batch_size]))
-        batch = segments[i:i + batch_size]
+    def run_batch(batch: list[dict], label: str, depth: int = 0) -> tuple[list[dict], int]:
+        """Correct one batch. If the model hits the output cap, retry it in halves;
+        if a call fails, keep that batch's original text."""
         batch_simple = [
             {"id": s["id"], "start": s["start"], "end": s["end"],
              "speaker": s["speaker"], "text": s["text"]}
             for s in batch
         ]
-
         prompt = template.render(
             corrections=corrections,
             segments_json=json.dumps(batch_simple, indent=2),
         )
-
         try:
             response = ollama_client.chat(
                 model=model,
@@ -117,8 +130,15 @@ def _apply_llm_corrections(
                 options={
                     "num_ctx": cfg.get("ollama", {}).get("num_ctx", 32768),
                     "temperature": 0,
+                    "num_predict": _MAX_OUTPUT_TOKENS,
                 },
             )
+            if _done_reason(response) == "length" and len(batch) > 1 and depth < 3:
+                log.info("    LLM batch %s hit the output cap -- retrying in halves", label)
+                mid = len(batch) // 2
+                left, n_left = run_batch(batch[:mid], label + "a", depth + 1)
+                right, n_right = run_batch(batch[mid:], label + "b", depth + 1)
+                return left + right, n_left + n_right
 
             response_text = response["message"]["content"]
 
@@ -130,6 +150,7 @@ def _apply_llm_corrections(
             corrected_batch = json.loads(response_text)
 
             # Validate and merge
+            out, n = [], 0
             for orig, corrected in zip(batch, corrected_batch):
                 new_text = corrected.get("text", orig["text"])
 
@@ -146,13 +167,28 @@ def _apply_llm_corrections(
                         new_text = orig["text"]
 
                 if new_text != orig["text"]:
-                    total_corrections += 1
-
-                all_corrected.append({**orig, "text": new_text})
-
+                    n += 1
+                out.append({**orig, "text": new_text})
+            if len(out) < len(batch):  # model returned fewer items: keep the rest as-is
+                out.extend(batch[len(out):])
+            return out, n
         except Exception as e:
-            log.warning("LLM batch %d failed: %s -- keeping originals", i // batch_size, e)
-            all_corrected.extend(batch)
+            log.warning("LLM batch %s failed: %s -- keeping originals", label, e)
+            return list(batch), 0
+
+    # Process in batches of ~20 segments (~3000 tokens)
+    batch_size = 20
+    all_corrected = []
+    total_corrections = 0
+
+    n_batches = (len(segments) + batch_size - 1) // batch_size
+    for i in range(0, len(segments), batch_size):
+        batch_num = i // batch_size + 1
+        batch = segments[i:i + batch_size]
+        log.info("    LLM batch %d/%d (%d segments)...", batch_num, n_batches, len(batch))
+        corrected, n = run_batch(batch, str(batch_num))
+        all_corrected.extend(corrected)
+        total_corrections += n
 
     return all_corrected, total_corrections
 

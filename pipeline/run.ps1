@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     One-shot pipeline runner:
-      extract (video -> audio) -> preprocess -> transcribe -> correct -> speakers -> names -> rename -> kb -> index
+      extract (video -> audio) -> preprocess -> transcribe -> correct -> speakers -> names -> rename -> kb -> index -> clips
       -> [review build -> PAUSE for human edits -> review apply] -> archive
 
     Recordings are collection-based: drop audio under data/recordings/<collection>/
@@ -77,6 +77,7 @@ else {
     Run-Step "Rename Speakers" "pipeline.rename_speakers" -AllFiles
     Run-Step "Knowledge Base" "pipeline.kb extract"
     Run-Step "Index" "pipeline.index" -AllFiles
+    Run-Step "Speaker Clips" "pipeline.clips" -AllFiles
 
     if (-not $NoReview -and -not $DryRun) {
         Run-Step "Review (build)" "pipeline.review build"

@@ -61,10 +61,21 @@ names:
   max_chars: 12000
   auto_accept_score: 3      # --accept-all threshold (self-intro=3, introduced=2, addressed=1)
 
+clips:
+  # One short MP3 per unnamed voice (python -m pipeline.clips) so a human can name it
+  # by ear. Written to data/speaker-id/<collection>/clips/ with an INDEX.md.
+  per_voice: 4              # snippets per voice, from different recordings where possible
+  min_seconds: 3.0          # preferred shortest turn; shorter ones only when a recording or slot has nothing longer
+  max_seconds: 15.0         # longer turns are used only if needed, trimmed to this length
+  pad_seconds: 0.25         # lead-in/out around each snippet
+  gap_seconds: 1.0          # silence between snippets
+  mp3_quality: 4            # libmp3lame -q:a (0 = best, 9 = smallest)
+
 correction:
   enabled: true
   model: "qwen3:8b"
-  corrections_file: "pipeline/prompts/domain_corrections.yaml"
+  corrections_file: "pipeline/prompts/domain_corrections.yaml"              # shared, generic
+  local_corrections_file: "pipeline/prompts/domain_corrections.local.yaml"  # yours, gitignored; review apply writes here
 
 chunking:
   strategy: "recursive"
