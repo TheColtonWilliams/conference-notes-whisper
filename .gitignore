@@ -10,6 +10,14 @@ build/
 # Environment
 .env
 
+# Personal settings (event vocabulary, private corrections, local paths): never committed.
+# pipeline/config.local.yaml is merged over config.yaml at load time.
+pipeline/config.local.yaml
+pipeline/prompts/*.local.yaml
+# temp files an interrupted atomic YAML write could leave next to them
+pipeline/*.tmp
+pipeline/prompts/*.tmp
+
 # ---------------------------------------------------------------------------
 # All content — recordings and every derived output — lives under data/.
 # Its contents are gitignored so the repo stays functionality-only. The repo

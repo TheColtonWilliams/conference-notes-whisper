@@ -16,6 +16,7 @@ data/recordings/defcon-2026/*.m4a  (or *.mp4 / .mkv / .mov / .webm / .avi)
     ├─ correct     → LLM cleanup of disfluencies / ASR errors (rule-based + Ollama)
     ├─ speakers    → ECAPA-TDNN voiceprints → matched against your people database
     ├─ names       → LLM reads the introductions → proposes who each speaker is
+    ├─ clips       → one short MP3 per unnamed voice, so you can name it by ear
     ├─ kb          → structured notes per talk (summary, topics, entities, quotes, open questions)
     ├─ index       → LanceDB vector + BM25 hybrid search index
     └─ archive     → move finished audio to processed/ (don't-reprocess gate)
@@ -43,7 +44,13 @@ the database better:
    closing minutes, plus any line with an introduction cue ("please welcome…",
    "my name is…", "thanks, Dana"), and the LLM attaches names to voices. Claims are
    tallied per person across every talk they appear in and saved as `proposed_names`.
-4. **You confirm once.** Accept a proposal (or type a name into `display_name`),
+4. **Nobody said the name? Listen.** `python -m pipeline.clips` cuts one short MP3
+   (about 45 seconds with the defaults) per unnamed voice from its longest turns, taken
+   from different recordings where possible, and writes an `INDEX.md` listing each
+   snippet's recording, timestamp and words. One listen usually beats hunting through
+   hours of audio. If a clip sounds like two different people, the voice was merged by
+   diarization: note it before naming.
+5. **You confirm once.** Accept a proposal (or type a name into `display_name`),
    run `python -m pipeline.rename_speakers`, and every transcript, note, and search
    result in every collection picks up the name.
 
@@ -76,6 +83,8 @@ spk_0001:
 
 ```bash
 python -m pipeline.speakers --list-unknown                    # who still needs a name
+python -m pipeline.clips                                      # an MP3 per unnamed voice + INDEX.md
+python -m pipeline.clips --person spk_0006                    # specific people -> clips/selected/ (latest request)
 python -m pipeline.names --accept spk_0004                    # take spk_0004's top proposal
 python -m pipeline.names --accept spk_0004 --pick 2           # ...or its second one
 python -m pipeline.names --accept-all                         # all clear-cut proposals
@@ -182,6 +191,7 @@ python -m pipeline.correct
 python -m pipeline.speakers
 python -m pipeline.names
 python -m pipeline.rename_speakers
+python -m pipeline.clips             # audio clips of unnamed voices, for naming by ear
 python -m pipeline.kb extract
 python -m pipeline.index
 python -m pipeline.review build      # queue unnamed speakers + unverified acronyms
@@ -196,14 +206,23 @@ Every stage supports `--dry-run` and `--verbose`, logs to `pipeline/logs/`, and 
 model-config hashes).
 
 **Better transcripts for a specific event:** put its jargon and speaker names in
-`asr.initial_prompt` (config.yaml) and common mishearings in
-`pipeline/prompts/domain_corrections.yaml`.
+`asr.initial_prompt` inside **`pipeline/config.local.yaml`**, and its common mishearings
+in **`pipeline/prompts/domain_corrections.local.yaml`**. Both files are gitignored and
+merged over the shared defaults (`review apply` also writes newly verified spellings to
+the local corrections file), so event vocabulary and names never end up in the repo:
+
+```yaml
+# pipeline/config.local.yaml (personal, not committed)
+asr:
+  initial_prompt: "Kubernetes, eBPF, SBOM, Jane Doe, Example Corp"
+```
 
 ### Where to read the results
 
 - **Talk notes**: `data/knowledge_base/<collection>/*.md` (+ `INDEX.md`)
 - **Transcripts**: `data/transcripts/<collection>/*.md` / `.vtt`
 - **Speakers**: `data/speaker-id/people.yaml`
+- **Voice clips to identify**: `data/speaker-id/<collection>/clips/` (`INDEX.md` + `<id>.mp3` per voice)
 - **Review queue**: `data/REVIEW.md`
 - **Original videos**: `data/video/<collection>/`
 
@@ -211,8 +230,9 @@ model-config hashes).
 
 ## Notes & gotchas
 
-- **Start Ollama before running the pipeline.** `correct` and `names` degrade
-  gracefully without it (they retry next run), but `kb` hard-fails.
+- **Start Ollama before running the pipeline.** Without it, `names` skips and retries
+  next run; `correct` keeps the original text for the batches it couldn't reach and
+  still marks the file done (delete its `.clean.json` to redo it); `kb` hard-fails.
 - **`qwen3` is a reasoning model.** Thinking mode makes it unusably slow here, so the
   prompts begin with `/no_think`. Keep that line in any new prompt.
 - **pyannote 4.x uses more VRAM than 3.x.** If diarization OOMs, set

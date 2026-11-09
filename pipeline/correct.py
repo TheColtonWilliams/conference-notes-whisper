@@ -41,15 +41,22 @@ def _corrections_hash(corrections: dict[str, str]) -> str:
 
 
 def _load_corrections(cfg: dict) -> dict[str, str]:
-    """Load domain corrections from YAML file."""
-    corrections_file = project_root() / cfg.get("correction", {}).get(
-        "corrections_file", "pipeline/prompts/domain_corrections.yaml"
-    )
-    if not corrections_file.exists():
-        return {}
-    with open(corrections_file, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    return data.get("corrections", {})
+    """Load domain corrections: the shared file, then the local (gitignored) overlay.
+
+    The overlay holds event-specific spellings, including the ones `review apply`
+    adds for verified terms, so they never land in the tracked file.
+    """
+    ccfg = cfg.get("correction", {})
+    merged: dict[str, str] = {}
+    for rel in (ccfg.get("corrections_file", "pipeline/prompts/domain_corrections.yaml"),
+                ccfg.get("local_corrections_file", "pipeline/prompts/domain_corrections.local.yaml")):
+        path = project_root() / rel
+        if not path.exists():
+            continue
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        merged.update(data.get("corrections") or {})
+    return merged
 
 
 def _apply_rule_based(segments: list[dict], corrections: dict[str, str]) -> tuple[list[dict], int]:

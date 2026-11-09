@@ -35,8 +35,28 @@ def project_root() -> Path:
     return _PROJECT_ROOT
 
 
+def _deep_merge(base: dict, over: dict) -> dict:
+    """Merge ``over`` into ``base`` in place: nested dicts merge, anything else replaces.
+
+    A null value (e.g. a section whose only key is commented out) is no override.
+    """
+    for key, value in over.items():
+        if value is None:
+            continue
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            _deep_merge(base[key], value)
+        else:
+            base[key] = value
+    return base
+
+
 def load_config(override_path: Path | None = None) -> dict:
     """Load config.yaml and resolve all paths relative to project root.
+
+    Personal settings (event vocabulary in ``asr.initial_prompt``, a private
+    corrections file, local paths) belong in ``pipeline/config.local.yaml``. It is
+    gitignored and, when present, merged over config.yaml, so the tracked file
+    stays generic.
 
     Also loads .env for environment variables (HF_TOKEN, etc.).
     """
@@ -45,6 +65,16 @@ def load_config(override_path: Path | None = None) -> dict:
     config_path = override_path or (project_root() / "pipeline" / "config.yaml")
     with open(config_path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
+
+    if override_path is None:
+        local_path = config_path.with_name("config.local.yaml")
+        if local_path.exists():
+            with open(local_path, "r", encoding="utf-8") as f:
+                local = yaml.safe_load(f) or {}
+            if not isinstance(local, dict):
+                raise ValueError(f"{local_path} must be a YAML mapping (section: settings), "
+                                 f"not {type(local).__name__}")
+            _deep_merge(cfg, local)
 
     # Resolve all paths relative to project root
     root = project_root()
