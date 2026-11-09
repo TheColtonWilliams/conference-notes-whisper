@@ -345,9 +345,20 @@ def verify_hf_token() -> str | None:
     """Check that HF_TOKEN is set and return it. Returns None if not set."""
     import os
     token = os.environ.get("HF_TOKEN")
-    if not token:
+    # The .env.example placeholder counts as unset.
+    if not token or token == "hf_your_token_here":
         return None
     return token
+
+
+def hf_model_cached(repo_id: str) -> bool:
+    """True if a HuggingFace pipeline repo is already in the local cache.
+
+    Gated models (pyannote) only need HF_TOKEN to download; once cached they
+    load fully offline with no token.
+    """
+    from huggingface_hub import try_to_load_from_cache
+    return isinstance(try_to_load_from_cache(repo_id, "config.yaml"), str)
 
 
 def format_timestamp(seconds: float) -> str:

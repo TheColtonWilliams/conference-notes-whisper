@@ -29,6 +29,7 @@ from pipeline.utils import (
     resolve_path,
     setup_logging,
     sha256_file,
+    hf_model_cached,
     verify_hf_token,
     write_meta,
 )
@@ -264,8 +265,8 @@ def _transcribe_file(
 
     # --- Stage 3: Diarization ---
     hf_token = verify_hf_token()
-    if not hf_token:
-        log.warning("  %s: HF_TOKEN not set -- skipping diarization", stem)
+    if not hf_token and not hf_model_cached(cfg["models"]["diarization"]):
+        log.warning("  %s: HF_TOKEN not set and model not cached -- skipping diarization", stem)
     else:
         diar_cfg = cfg.get("diarization", {})
         diar_device = diar_cfg.get("run_on", "cuda") if torch.cuda.is_available() else "cpu"
@@ -350,12 +351,12 @@ def main(
     log = setup_logging("transcribe", verbose)
     cfg = load_config()
 
-    # Validate HF token early
+    # Validate HF token early (only needed to download a gated model once)
     hf_token = verify_hf_token()
-    if not hf_token and not smoke:
+    if not hf_token and not smoke and not hf_model_cached(cfg["models"]["diarization"]):
         log.warning(
-            "HF_TOKEN not set in .env. Diarization will be skipped. "
-            "Set HF_TOKEN for speaker identification."
+            "HF_TOKEN not set in .env and diarization model not cached. "
+            "Diarization will be skipped. Set HF_TOKEN once to download it."
         )
 
     if smoke:

@@ -13,6 +13,13 @@ from __future__ import annotations
 import glob
 import os
 import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load .env before anything imports huggingface_hub: HF_HUB_OFFLINE is read
+# once at import time, so setting it later has no effect.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # Force SpeechBrain to use COPY strategy instead of symlinks on Windows
 os.environ["SPEECHBRAIN_LOCAL_STRATEGY"] = "COPY"

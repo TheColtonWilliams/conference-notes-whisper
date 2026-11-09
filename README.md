@@ -137,7 +137,9 @@ speaker database is the one thing shared across collections.
 - **ffmpeg** on `PATH`.
 - **[Ollama](https://ollama.com)** running locally.
 - A **HuggingFace token** with access to `pyannote/speaker-diarization-3.1` (accept
-  the model terms on HF, then put the token in `.env`).
+  the model terms on HF, then put the token in `.env`). It is only needed to
+  download the gated model once. After the first full run has cached every model,
+  set `HF_HUB_OFFLINE=1` in `.env`: the pipeline then runs fully offline, no token.
 - **No compiler needed.** Every dependency ships prebuilt wheels for Python 3.11 on
   x86-64 Windows/Linux. The CUDA/cuDNN runtime comes with the torch wheels; you only
   need an NVIDIA driver. (On platforms without wheels, such as ARM Linux, you'd need a
